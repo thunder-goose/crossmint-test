@@ -21,6 +21,11 @@ export function HomeContent() {
     wallet != null && isAuthenticated && walletStatus === "connected";
   const isLoading = walletStatus === "loading" || kindeLoading;
 
+  // Determine org-specific branding
+  const isOpteq = process.env.NEXT_PUBLIC_KINDE_ORG_CODE === "org_dde74c69afd7";
+  const orgName = isOpteq ? "Opteq" : "Buyt";
+  const iconColor = isOpteq ? "text-blue-600" : "text-purple-600";
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center">
@@ -74,18 +79,25 @@ export function HomeContent() {
   return (
     <div className="w-full max-w-6xl mx-auto px-4 py-6 sm:py-8">
       <div className="flex flex-col mb-8">
-        <Image
-          src="/crossmint.svg"
-          alt="Crossmint logo"
-          priority
-          width={150}
-          height={150}
-          className="mb-4"
-        />
-        <h1 className="text-2xl font-semibold mb-2">Wallets Quickstart</h1>
+        <div
+          className={`w-12 h-12 rounded-full flex items-center justify-center mb-4 ${
+            isOpteq ? "bg-blue-100" : "bg-purple-100"
+          }`}
+        >
+          <span className={`text-xl font-bold ${iconColor}`}>
+            {orgName.charAt(0)}
+          </span>
+        </div>
+        <h1 className="text-2xl font-semibold mb-2">
+          {orgName} Wallets Quickstart
+        </h1>
         <p className="text-gray-600 text-sm">
           The easiest way to build onchain
         </p>
+      </div>
+
+      <div className="flex flex-col mb-8">
+        <h1 className="text-2xl font-semibold mb-2">System</h1>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
