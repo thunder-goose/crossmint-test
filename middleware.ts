@@ -1,16 +1,23 @@
 // middleware.ts
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
-import { kindeHelpers } from "./lib/kinde";
+import { withAuth } from "@kinde-oss/kinde-auth-nextjs/middleware";
 
-export async function middleware(req: NextRequest) {
-  const token = req.cookies.get("id_token")?.value;
+export default withAuth({
+  // Configure authentication behavior
+  isReturnToCurrentPage: true,
+  // For SSO behavior, we want to redirect to login when not authenticated
+  loginPage: "/api/auth/login",
+});
 
-  if (!token) {
-    // Redirect to Kinde with prompt=none
-    const authUrl = kindeHelpers.getAuthUrl({ prompt: "none" });
-    return NextResponse.redirect(authUrl);
-  }
-
-  return NextResponse.next();
-}
+export const config = {
+  matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - api/auth (auth routes)
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - public folder
+     */
+    "/((?!api/auth|_next/static|_next/image|favicon.ico|public).*)",
+  ],
+};
