@@ -23,7 +23,9 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - public folder
+     * - root path (/) to allow public access to home page
+     * Explicitly include /home route only
      */
-    "/((?!api/auth|_next/static|_next/image|favicon.ico|public|^$|^/$).*)",
+    "/home",
   ],
 };
