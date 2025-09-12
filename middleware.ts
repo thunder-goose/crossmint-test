@@ -5,9 +5,9 @@ export default withAuth({
   // Configure authentication behavior
   //   isReturnToCurrentPage: true,
   // For SSO behavior, we want to redirect to login when not authenticated
-  //   loginPage: `/api/auth/login?org_code=${encodeURIComponent(
-  //     process.env.NEXT_PUBLIC_KINDE_ORG_CODE || ""
-  //   )}&`,
+  loginPage: `/api/auth/login?org_code=${encodeURIComponent(
+    process.env.NEXT_PUBLIC_KINDE_ORG_CODE || ""
+  )}&`,
 });
 
 // export default function middleware(req: NextRequest) {
