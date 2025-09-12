@@ -334,6 +334,376 @@ function requireAuth() {
 ?>
 ```
 
+### PHP Implementation Using Kinde PHP SDK
+
+For a more streamlined approach, you can use the official [Kinde PHP SDK](https://docs.kinde.com/developer-tools/sdks/backend/php-sdk/) which handles much of the OAuth complexity for you.
+
+#### 1. Installation
+
+First, install the Kinde PHP SDK using Composer:
+
+```bash
+composer require kinde-oss/kinde-auth-php
+```
+
+#### 2. Environment Configuration
+
+```php
+<?php
+// config.php
+return [
+    'kinde' => [
+        'domain' => $_ENV['KINDE_DOMAIN'] ?? 'https://qoin-stg.eu.kinde.com',
+        'client_id' => $_ENV['KINDE_CLIENT_ID'] ?? 'your_client_id',
+        'client_secret' => $_ENV['KINDE_CLIENT_SECRET'] ?? 'your_client_secret',
+        'redirect_uri' => $_ENV['KINDE_SITE_URL'] . '/auth/callback',
+        'logout_redirect_uri' => $_ENV['KINDE_SITE_URL'] ?? 'https://your-php-app.com',
+        'scope' => 'openid profile email'
+    ]
+];
+?>
+```
+
+#### 3. Kinde SDK Wrapper Class
+
+```php
+<?php
+// KindeSdkAuth.php
+require_once 'vendor/autoload.php';
+
+use Kinde\KindeSDK\KindeClientSDK;
+use Kinde\KindeSDK\Configuration;
+use Kinde\KindeSDK\Sdk\Enums\GrantType;
+use Kinde\KindeSDK\Sdk\Enums\StorageEnums;
+
+class KindeSdkAuth {
+    private $kindeClient;
+    private $config;
+
+    public function __construct($config) {
+        $this->config = $config['kinde'];
+
+        // Initialize Kinde client
+        $this->kindeClient = new KindeClientSDK(
+            $this->config['domain'],
+            $this->config['redirect_uri'],
+            $this->config['client_id'],
+            $this->config['client_secret'],
+            GrantType::AUTHORIZATION_CODE,
+            $this->config['logout_redirect_uri'],
+            $this->config['scope']
+        );
+    }
+
+    /**
+     * Get authorization URL for login
+     */
+    public function getLoginUrl(array $options = []): string {
+        $additionalParams = [];
+
+        // Add prompt parameter for SSO behavior
+        if (isset($options['prompt'])) {
+            $additionalParams['prompt'] = $options['prompt'];
+        }
+
+        return $this->kindeClient->login($additionalParams);
+    }
+
+    /**
+     * Get authorization URL for registration
+     */
+    public function getRegisterUrl(array $options = []): string {
+        $additionalParams = [];
+
+        if (isset($options['prompt'])) {
+            $additionalParams['prompt'] = $options['prompt'];
+        }
+
+        return $this->kindeClient->register($additionalParams);
+    }
+
+    /**
+     * Handle callback and exchange code for tokens
+     */
+    public function handleCallback(): array {
+        try {
+            // The SDK handles the callback automatically
+            $this->kindeClient->getToken();
+
+            // Get user information
+            $user = $this->kindeClient->getUser();
+
+            return [
+                'success' => true,
+                'user' => $user,
+                'access_token' => $this->kindeClient->getToken(),
+                'is_authenticated' => $this->kindeClient->isAuthenticated()
+            ];
+        } catch (Exception $e) {
+            return [
+                'success' => false,
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Get logout URL
+     */
+    public function getLogoutUrl(): string {
+        return $this->kindeClient->logout();
+    }
+
+    /**
+     * Check if user is authenticated
+     */
+    public function isAuthenticated(): bool {
+        return $this->kindeClient->isAuthenticated();
+    }
+
+    /**
+     * Get current user
+     */
+    public function getUser(): ?array {
+        if (!$this->isAuthenticated()) {
+            return null;
+        }
+
+        return $this->kindeClient->getUser();
+    }
+
+    /**
+     * Get user permissions
+     */
+    public function getUserPermissions(): array {
+        if (!$this->isAuthenticated()) {
+            return [];
+        }
+
+        return $this->kindeClient->getPermissions();
+    }
+
+    /**
+     * Get user organizations
+     */
+    public function getUserOrganizations(): array {
+        if (!$this->isAuthenticated()) {
+            return [];
+        }
+
+        return $this->kindeClient->getUserOrganizations();
+    }
+
+    /**
+     * Get claim value
+     */
+    public function getClaim(string $claim): mixed {
+        if (!$this->isAuthenticated()) {
+            return null;
+        }
+
+        return $this->kindeClient->getClaim($claim);
+    }
+}
+?>
+```
+
+#### 4. Usage Examples with SDK
+
+```php
+<?php
+// login.php
+session_start();
+require_once 'config.php';
+require_once 'KindeSdkAuth.php';
+
+$config = include 'config.php';
+$kindeAuth = new KindeSdkAuth($config);
+
+// Redirect to Kinde for authentication
+$authUrl = $kindeAuth->getLoginUrl([
+    'prompt' => 'none' // For SSO behavior
+]);
+
+header('Location: ' . $authUrl);
+exit;
+?>
+```
+
+```php
+<?php
+// register.php
+session_start();
+require_once 'config.php';
+require_once 'KindeSdkAuth.php';
+
+$config = include 'config.php';
+$kindeAuth = new KindeSdkAuth($config);
+
+// Redirect to Kinde for registration
+$authUrl = $kindeAuth->getRegisterUrl();
+
+header('Location: ' . $authUrl);
+exit;
+?>
+```
+
+```php
+<?php
+// auth/callback.php
+session_start();
+require_once '../config.php';
+require_once '../KindeSdkAuth.php';
+
+$config = include '../config.php';
+$kindeAuth = new KindeSdkAuth($config);
+
+try {
+    $result = $kindeAuth->handleCallback();
+
+    if ($result['success']) {
+        // Store user info in session
+        $_SESSION['user'] = $result['user'];
+        $_SESSION['is_authenticated'] = $result['is_authenticated'];
+        $_SESSION['access_token'] = $result['access_token'];
+
+        // Redirect to dashboard or home page
+        header('Location: /dashboard.php');
+        exit;
+    } else {
+        throw new Exception($result['error']);
+    }
+
+} catch (Exception $e) {
+    // Handle error
+    error_log('OAuth callback error: ' . $e->getMessage());
+    header('Location: /login.php?error=' . urlencode($e->getMessage()));
+    exit;
+}
+?>
+```
+
+```php
+<?php
+// logout.php
+session_start();
+require_once 'config.php';
+require_once 'KindeSdkAuth.php';
+
+$config = include 'config.php';
+$kindeAuth = new KindeSdkAuth($config);
+
+// Clear session
+session_destroy();
+
+// Redirect to Kinde logout
+$logoutUrl = $kindeAuth->getLogoutUrl();
+header('Location: ' . $logoutUrl);
+exit;
+?>
+```
+
+#### 5. Enhanced Middleware with SDK Features
+
+```php
+<?php
+// middleware/auth_sdk.php
+require_once 'config.php';
+require_once 'KindeSdkAuth.php';
+
+function requireAuth() {
+    session_start();
+
+    $config = include 'config.php';
+    $kindeAuth = new KindeSdkAuth($config);
+
+    if (!$kindeAuth->isAuthenticated()) {
+        header('Location: /login.php');
+        exit;
+    }
+
+    return $kindeAuth->getUser();
+}
+
+function requirePermission(string $permission) {
+    session_start();
+
+    $config = include 'config.php';
+    $kindeAuth = new KindeSdkAuth($config);
+
+    if (!$kindeAuth->isAuthenticated()) {
+        header('Location: /login.php');
+        exit;
+    }
+
+    $permissions = $kindeAuth->getUserPermissions();
+
+    if (!in_array($permission, $permissions)) {
+        http_response_code(403);
+        echo 'Access denied: insufficient permissions';
+        exit;
+    }
+
+    return $kindeAuth->getUser();
+}
+
+// Usage examples:
+// require_once 'middleware/auth_sdk.php';
+// $user = requireAuth();
+// $user = requirePermission('read:users');
+?>
+```
+
+#### 6. Dashboard Example with SDK Features
+
+```php
+<?php
+// dashboard.php
+require_once 'middleware/auth_sdk.php';
+require_once 'config.php';
+require_once 'KindeSdkAuth.php';
+
+$user = requireAuth();
+$config = include 'config.php';
+$kindeAuth = new KindeSdkAuth($config);
+
+// Get additional user data
+$permissions = $kindeAuth->getUserPermissions();
+$organizations = $kindeAuth->getUserOrganizations();
+$customClaim = $kindeAuth->getClaim('custom_claim_name');
+?>
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dashboard</title>
+</head>
+<body>
+    <h1>Welcome, <?php echo htmlspecialchars($user['given_name'] ?? 'User'); ?>!</h1>
+
+    <h2>User Information</h2>
+    <p>Email: <?php echo htmlspecialchars($user['email'] ?? 'N/A'); ?></p>
+    <p>Name: <?php echo htmlspecialchars(($user['given_name'] ?? '') . ' ' . ($user['family_name'] ?? '')); ?></p>
+
+    <h2>Permissions</h2>
+    <ul>
+        <?php foreach ($permissions as $permission): ?>
+            <li><?php echo htmlspecialchars($permission); ?></li>
+        <?php endforeach; ?>
+    </ul>
+
+    <h2>Organizations</h2>
+    <ul>
+        <?php foreach ($organizations as $org): ?>
+            <li><?php echo htmlspecialchars($org['name'] ?? $org['code'] ?? 'Unknown'); ?></li>
+        <?php endforeach; ?>
+    </ul>
+
+    <a href="/logout.php">Logout</a>
+</body>
+</html>
+```
+
 ### Key Points for SSO Implementation
 
 1. **Same Kinde Configuration**: All apps must use the same `KINDE_ISSUER_URL` and `KINDE_CLIENT_ID`
@@ -341,6 +711,7 @@ function requireAuth() {
 3. **Session Management**: Store tokens securely and implement proper session handling
 4. **Error Handling**: Handle OAuth errors gracefully and provide user feedback
 5. **Security**: Always verify the state parameter to prevent CSRF attacks
+6. **SDK Benefits**: The official SDK handles token management, state verification, and provides additional features like permissions and organizations
 
 ## Using in production
 
