@@ -345,3 +345,5 @@ function requireAuth() {
 ## Using in production
 
 1. Create a [production API key](https://docs.crossmint.com/introduction/platform/api-keys/client-side).`
+
+The auth works as it's currently
